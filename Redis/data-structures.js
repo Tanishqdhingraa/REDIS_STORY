@@ -1,124 +1,92 @@
 const redis = require("redis");
 
 const client = redis.createClient({
-  host: "localhost",
-  port: 6379,
+  url: "redis://127.0.0.1:6379",
 });
 
-//event listener
+client.on("connect", () => {
+  console.log("✅ Redis connected");
+});
 
-client.on("error", (error) =>
-  console.log("Redis client error occured!", error)
-);
+client.on("error", (err) => {
+  console.error("❌ Redis error:", err);
+});
 
 async function redisDataStructures() {
   try {
     await client.connect();
-    // Strings -> SET, GET, MSET, MGET
 
-    // await client.set("user:name", "Sangam Mukherjee");
-    // const name = await client.get("user:name");
-    // console.log(name);
+    /* ---------- STRING WITH TTL ---------- */
+    await client.set("user:1:name", "Sangam Mukherjee", { EX: 60 });
+    console.log("User Name:", await client.get("user:1:name"));
 
-    // await client.mSet([
-    //   "user:email",
-    //   "sangam@gmail.com",
-    //   "user:age",
-    //   "60",
-    //   "user:country",
-    //   "India",
-    // ]);
-    // const [email, age, country] = await client.mGet([
-    //   "user:email",
-    //   "user:age",
-    //   "user:country",
-    // ]);
+    /* ---------- JSON CACHING ---------- */
+    const cacheKey = "cache:user:1";
+    const cached = await client.get(cacheKey);
 
-    // console.log(email, age, country);
+    if (cached) {
+      console.log("⚡ From Cache:", JSON.parse(cached));
+    } else {
+      const user = { id: 1, email: "sangam@gmail.com", country: "India" };
+      await client.setEx(cacheKey, 120, JSON.stringify(user));
+      console.log("🗄 Cached Fresh Data:", user);
+    }
 
-    // lists -> LPUSH, RPUSH, LRANGE, LPOP, RPOP
+    /* ---------- LIST ---------- */
+    await client.lPush("user:1:activity", [
+      "LOGIN",
+      "VIEW_PRODUCT",
+      "LOGOUT",
+    ]);
+    await client.lTrim("user:1:activity", 0, 4);
+    console.log(
+      "Recent Activities:",
+      await client.lRange("user:1:activity", 0, -1)
+    );
 
-    // await client.lPush("notes", ["note 1", "note 2", "note 3"]);
-    // const extractAllNotes = await client.lRange("notes", 0, -1);
-    // console.log(extractAllNotes);
+    /* ---------- SET ---------- */
+    await client.sAdd("user:1:roles", ["ADMIN", "USER"]);
+    console.log("User Roles:", await client.sMembers("user:1:roles"));
 
-    // const firstNote = await client.lPop("notes");
-    // console.log(firstNote);
+    /* ---------- SORTED SET (FIXED) ---------- */
+    await client.zAdd("leaderboard", [
+      { score: 120, value: "UserA" },
+      { score: 300, value: "UserB" },
+      { score: 50, value: "UserC" },
+    ]);
 
-    // const remainingNotes = await client.lRange("notes", 0, -1);
-    // console.log(remainingNotes, "remainingNotes");
+    console.log(
+      "Leaderboard:",
+      await client.zRangeWithScores("leaderboard", 0, -1)
+    );
 
-    // sets -> SADD, SMEMBERS, SISMEMBER, SREM
-    // await client.sAdd("user:nickName", ["john", "varun", "xyz"]);
-    // const extractUserNicknames = await client.sMembers("user:nickName");
-
-    // console.log(extractUserNicknames);
-
-    // const isVarunIsOneOfUserNickName = await client.sIsMember(
-    //   "user:nickName",
-    //   "varun"
-    // );
-    // console.log(isVarunIsOneOfUserNickName);
-
-    // await client.sRem("user:nickName", "xyz");
-
-    // const getUpdatedUserNickNames = await client.sMembers("user:nickName");
-    // console.log(getUpdatedUserNickNames);
-
-    //sorted sets
-    // ZADD, ZRANGE, ZRANK, ZREM
-
-    // await client.zAdd("cart", [
-    //   {
-    //     score: 100,
-    //     value: "Cart 1",
-    //   },
-    //   {
-    //     score: 150,
-    //     value: "Cart 2",
-    //   },
-    //   {
-    //     score: 10,
-    //     value: "Cart 3",
-    //   },
-    // ]);
-
-    // const getCartItems = await client.zRange("cart", 0, -1);
-    // console.log(getCartItems);
-
-    // const extractAllCartItemsWithScore = await client.zRangeWithScores(
-    //   "cart",
-    //   0,
-    //   -1
-    // );
-    // console.log(extractAllCartItemsWithScore);
-
-    // const cartTwoRank = await client.zRank("cart", "Cart 2");
-    // console.log(cartTwoRank);
-
-    //hashes -> HSET, HGET, HGETALL, HDEL
-
-    await client.hSet("product:1", {
-      name: "Product 1",
-      description: "product one description",
-      rating: "5",
+    /* ---------- HASH ---------- */
+    await client.hSet("product:101", {
+      name: "iPhone 15",
+      price: "80000",
+      stock: "10",
     });
 
-    const getProductRating = await client.hGet("product:1", "rating");
-    console.log(getProductRating);
+    console.log(
+      "Product Details:",
+      await client.hGetAll("product:101")
+    );
 
-    const getProductDetails = await client.hGetAll("product:1");
-    console.log(getProductDetails);
+    /* ---------- RATE LIMIT COUNTER ---------- */
+    const key = "rate:user:1";
+    const count = await client.incr(key);
+    if (count === 1) await client.expire(key, 60);
 
-    await client.hDel("product:1", "rating");
+    console.log("Requests in last minute:", count);
 
-    const updatedProductDetails = await client.hGetAll("product:1");
-    console.log(updatedProductDetails);
-  } catch (e) {
-    console.error(e);
-  } finally {
-    client.quit();
-  }
+    await client.del(cacheKey);
+    console.log("🧹 Cache invalidated");
+  } catch (err) {
+    console.error("Redis operation failed:", err);
+  } //finally {
+  //   await client.quit();
+  //   console.log("🔌 Redis disconnected");
+  // }
 }
 
-redisDataStructures();
+redisDataStructures()

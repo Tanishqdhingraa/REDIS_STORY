@@ -50,8 +50,8 @@ async function redisDemo() {
   console.log("ZSET:", leaderboard);
 
   // ================= CLOSE CONNECTION =================
-//   await redisClient.quit();
-//   console.log("❌ Redis Disconnected");
+  await redisClient.quit();
+  console.log("❌ Redis Disconnected");
 }
 
 // Run function
