@@ -20,6 +20,16 @@ async function redisDemo() {
   const username = await redisClient.get("username");
   console.log("STRING:", username);
 
+  // ================= TTL (Expire) =================
+  // Simulating OTP or Session token
+  await redisClient.set("otp:1001", "987654", {
+    EX: 60 // expires in 60 seconds
+  });
+
+  const otp = await redisClient.get("otp:1001");
+  const ttl = await redisClient.ttl("otp:1001");
+  console.log("OTP:", otp, "TTL left:", ttl, "seconds");
+
   // ================= LIST =================
   await redisClient.lPush("subjects", "ML");
   await redisClient.lPush("subjects", "DBMS");
@@ -48,6 +58,24 @@ async function redisDemo() {
   ]);
   const leaderboard = await redisClient.zRange("leaderboard", 0, -1);
   console.log("ZSET:", leaderboard);
+
+  // ================= RATE LIMITING =================
+  // Simulate API calls from same IP
+  const ip = "192.168.1.10";
+  const rateKey = `rate:${ip}`;
+
+  const requests = await redisClient.incr(rateKey);
+
+  // First request → start time window
+  if (requests === 1) {
+    await redisClient.expire(rateKey, 10); // 10 second window
+  }
+
+  if (requests > 5) {
+    console.log("🚫 Too many requests from", ip);
+  } else {
+    console.log(`✅ Request ${requests} allowed for`, ip);
+  }
 
   // ================= CLOSE CONNECTION =================
   await redisClient.quit();

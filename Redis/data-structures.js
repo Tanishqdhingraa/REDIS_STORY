@@ -1,3 +1,21 @@
+// SET       → store a value in Redis (can include TTL)
+// GET       → read a value from Redis
+// SETEX    → store a value with expiry (used for cache)
+// LPUSH    → add items to the beginning of a list
+// LRANGE   → read items from a list
+// LTRIM    → keep only the last N items in a list
+// SADD     → add unique values to a set
+// SMEMBERS → get all values from a set
+// ZADD     → add values with scores to a sorted set
+// ZRANGEWITHSCORES → get sorted set data with ranking
+// HSET     → store an object (field-value pairs)
+// HGETALL  → get full object from Redis
+// INCR     → increase a numeric counter (used in rate limiting)
+// EXPIRE   → set TTL (time to live) for a key
+// DEL      → delete a key (cache invalidation)
+// CONNECT  → connect Node.js to Redis
+// QUIT     → close Redis connection
+
 const redis = require("redis");
 
 const client = redis.createClient({
@@ -83,10 +101,10 @@ async function redisDataStructures() {
     console.log("🧹 Cache invalidated");
   } catch (err) {
     console.error("Redis operation failed:", err);
-  } //finally {
-  //   await client.quit();
-  //   console.log("🔌 Redis disconnected");
-  // }
+  } finally {
+     await client.quit();
+     console.log("🔌 Redis disconnected");
+   }
 }
 
 redisDataStructures()
